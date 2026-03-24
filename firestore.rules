@@ -1,0 +1,153 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: servers
+// Document ID: serverId
+// Fields:
+//   - id: string (required) - Unique server ID
+//   - name: string (required) - Server name
+//   - country: string (required) - Country name
+//   - flag: string (required) - Country flag emoji or icon name
+//   - ip: string (required) - Server IP address
+//   - isPro: boolean (required) - Whether the server is for Pro users only
+//   - ping: number (optional) - Server latency
+//
+// Collection: users
+// Document ID: userId
+// Fields:
+//   - uid: string (required) - User's Firebase UID
+//   - email: string (required) - User's email address
+//   - displayName: string (optional) - User's display name
+//   - photoURL: string (optional) - User's profile photo URL
+//   - isPro: boolean (required) - Whether the user has a Pro subscription
+//   - subscriptionExpires: string (optional, ISO 8601) - Subscription expiration date
+//   - role: string (optional) - User role (admin/user)
+//
+// Collection: settings
+// Document ID: global
+// Fields:
+//   - adsEnabled: boolean (required)
+//   - emergencyMessage: string (optional)
+//   - showEmergency: boolean (optional)
+//   - appVersion: string (optional)
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isPro() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isPro == true;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "mdtanbirakon5@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string &&
+        dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'isPro']) &&
+             data.uid == request.auth.uid &&
+             isValidEmail(data.email) &&
+             data.email.size() < 256 &&
+             data.isPro is bool &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 100)) &&
+             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() < 500)) &&
+             (!('subscriptionExpires' in data) || isValidDateString(data.subscriptionExpires)) &&
+             (!('role' in data) || (data.role is string && data.role in ['admin', 'user']));
+    }
+
+    function isValidServer(data) {
+      return data.keys().hasAll(['id', 'name', 'country', 'flag', 'ip', 'isPro']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 50 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.country is string && data.country.size() > 0 && data.country.size() < 100 &&
+             data.flag is string && data.flag.size() > 0 && data.flag.size() < 50 &&
+             data.ip is string && data.ip.size() > 0 && data.ip.size() < 45 &&
+             data.isPro is bool &&
+             (!('ping' in data) || (data.ping is number && data.ping >= 0 && data.ping < 10000));
+    }
+
+    function isValidSettings(data) {
+      return data.keys().hasAll(['adsEnabled']) &&
+             data.adsEnabled is bool &&
+             (!('emergencyMessage' in data) || (data.emergencyMessage is string && data.emergencyMessage.size() < 500)) &&
+             (!('showEmergency' in data) || data.showEmergency is bool) &&
+             (!('appVersion' in data) || (data.appVersion is string && data.appVersion.size() < 20));
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /servers/{serverId} {
+      // Free servers are readable by anyone authenticated
+      // Pro servers are only readable by Pro users or Admins
+      allow read: if isAuthenticated() && (resource.data.isPro == false || isPro() || isAdmin());
+      // Only admins can modify servers
+      allow create, update, delete: if isAdmin() && isValidServer(request.resource.data);
+    }
+
+    match /users/{userId} {
+      // Users can only read their own profile
+      allow read: if isOwner(userId) || isAdmin();
+      
+      // Users can create their own profile, but MUST be non-pro and non-admin initially
+      allow create: if isOwner(userId) && 
+                      isValidUser(request.resource.data) && 
+                      request.resource.data.isPro == false &&
+                      (!('role' in request.resource.data) || request.resource.data.role == 'user');
+      
+      // Users can update their own profile, but CANNOT change isPro or role
+      allow update: if isOwner(userId) && 
+                      isValidUser(request.resource.data) && 
+                      request.resource.data.isPro == resource.data.isPro &&
+                      (!('role' in request.resource.data) || request.resource.data.role == resource.data.role);
+      
+      // Admins can do anything (including upgrading users)
+      allow write: if isAdmin();
+    }
+
+    match /settings/{settingId} {
+      // Settings are readable by anyone (public)
+      allow read: if true;
+      // Only admins can modify settings
+      allow write: if isAdmin() && isValidSettings(request.resource.data);
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}
