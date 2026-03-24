@@ -1,0 +1,9 @@
+/**
+ * AdMob Configuration for Btaf Vpn
+ */
+export const ADMOB_CONFIG = {
+  APP_ID: 'ca-app-pub-8395541911265203~6586053904',
+  BANNER_ID: 'ca-app-pub-8395541911265203/9387477003',
+  INTERSTITIAL_ID: 'ca-app-pub-8395541911265203/9714513224',
+  REWARDED_ID: 'ca-app-pub-8395541911265203/5883031579',
+};
