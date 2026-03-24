@@ -1,0 +1,61 @@
+{
+  "entities": {
+    "Server": {
+      "title": "VPN Server",
+      "description": "A VPN server location and connection details.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "country": { "type": "string" },
+        "flag": { "type": "string" },
+        "ip": { "type": "string" },
+        "isPro": { "type": "boolean" },
+        "ping": { "type": "number" }
+      },
+      "required": ["id", "name", "country", "flag", "ip", "isPro"]
+    },
+    "User": {
+      "title": "User Profile",
+      "description": "User account information and subscription status.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "isPro": { "type": "boolean" },
+        "isPremium": { "type": "boolean" },
+        "subscriptionExpires": { "type": "string", "format": "date-time" },
+        "sessionTimeRemaining": { "type": "number", "description": "Remaining VPN session time in seconds." }
+      },
+      "required": ["uid", "email", "isPro"]
+    },
+    "GlobalSettings": {
+      "title": "Global Configuration",
+      "description": "App-wide settings for ads and broadcasts.",
+      "type": "object",
+      "properties": {
+        "adsEnabled": { "type": "boolean" },
+        "emergencyMessage": { "type": "string" },
+        "showEmergency": { "type": "boolean" },
+        "appVersion": { "type": "string" }
+      },
+      "required": ["adsEnabled"]
+    }
+  },
+  "firestore": {
+    "/servers/{serverId}": {
+      "schema": "Server",
+      "description": "List of available VPN servers."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile data."
+    },
+    "/settings/global": {
+      "schema": "GlobalSettings",
+      "description": "Global application configuration."
+    }
+  }
+}
